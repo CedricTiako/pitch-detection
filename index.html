@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Learn Music</title>
+    <!-- <script src="https://cdn.tailwindcss.com"></script> -->
+    <script src="./tailwind.min.js"></script>
+</head>
+<body>
+    <p class="bg-[#262626] text-white text-xl text-center py-5 font-black rounded-br-[30px] mb-5">Learn Music App</p>
+    <div class="px-3">
+        <video id="videoElement" class="bg-[#262626] rounded-[20px] mb-3 p-3" src="doremi.mp4"></video>
+        <video id="videoElement1" class="hidden bg-[#262626] rounded-[20px] mb-3 p-3" src="doremi.mp4"></video>
+        <div class="mb-3 bg-[#262626] rounded-[30px]">
+            <canvas id="spectrumCanvas" class="w-full h-32 rounded-[30px]"></canvas>
+        </div>
+        <div class="mb-3 bg-[#262626] rounded-[30px]">
+            <canvas id="spectrumCanvas1" class="w-full h-32 rounded-[30px]"></canvas>
+        </div>
+        <div class="mb-3">
+            <div id="recordDiv">
+                <div id="recordDiv1">
+                    <p class="p-3 bg-[#262626] rounded-[20px] mb-3 text-white text-center"> COMMENCER </p>
+                </div>
+                <div id="recordDiv2" class="hidden">
+                    <div class="p-3 bg-[#262626] rounded-[20px] mb-3 text-white ">
+                        <div class="flex items-center">
+                            <p class="w-5 h-5 rounded-full border-b animate-spin mr-5"> </p> 
+                            <p>enregistrement de la video en cours...</p>
+                        </div>
+                    </div>
+                </div>
+                <div id="recordDiv3" class="hidden">
+                    <div class="p-3 bg-[#262626] rounded-[20px] mb-3 text-white ">
+                        <div class="flex items-center">
+                            <p class="w-5 h-5 rounded-full border-b animate-spin mr-5"> </p> 
+                            <p>Enregistrement de la note ....</p>
+                        </div>
+                    </div>
+                </div>
+                <div id="recordDiv4" class="hidden">
+                    <div class="p-3 bg-[#262626] rounded-[20px] mb-3 text-white flex items-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-7" viewBox="0 0 512 512"><path fill="currentColor" d="M133 440a35.37 35.37 0 01-17.5-4.67c-12-6.8-19.46-20-19.46-34.33V111c0-14.37 7.46-27.53 19.46-34.33a35.13 35.13 0 0135.77.45l247.85 148.36a36 36 0 010 61l-247.89 148.4A35.5 35.5 0 01133 440z"/></svg>
+                        <p  class="ml-5 text-center"> RECOMMENCER </p>
+                    </div>
+                </div>
+                <p id="recordDiv3Txt" class="text-gray-800 text-center font-bold"></p>
+            </div>
+        </div>
+        
+    </div>
+    <script src="audioSpectrum.js"></script>
+    <script>
+        let recordId = 1
+        let audioContext = new AudioContext();
+        let analyser = null
+        let ret = Array()
+        let ret1 = Array()
+        let isVideo = true
+        let video = dom("videoElement")
+        let canvas = dom("spectrumCanvas")
+        let canvas1 = dom("spectrumCanvas1")
+
+        dom("recordDiv").addEventListener("click" , async ()=>{
+            switch(recordId){
+                case 1:
+                    analyser = await getAnalyser(audioContext , video)
+                    // analyser = await getAnalyser(audioContext)
+                    video.play()
+                    if(!analyser) return;
+                    console.log(audioContext.sampleRate)
+                    await audioContext.resume()
+                    captureData(analyser)
+                    switchTo(2)
+                    break;
+                case 4:
+                    location.reload()
+                    break;
+            }
+        })
+
+
+        async function showResult(){
+            await audioContext.suspend()
+            ret1 = removeNoise(ret1 , 5)
+            drawSpectre(ret1 , canvas1)
+            let mse = compareDataList(ret , ret1)
+            if(mse < 10){
+                dom("recordDiv3Txt").textContent = "les audios sont identique "+mse
+            }else{
+                dom("recordDiv3Txt").textContent = "les audios ne sont pas identique "+mse
+            }
+            switchTo(4)
+        }
+
+        function captureData(analyser){
+            if(audioContext.state === "running"){
+                let data = getFrequencyData(analyser)
+                let moy = getMoyArray(data)
+                let can = null
+                if(isVideo){
+                    ret.push(moy)
+                    can = canvas
+                }else{
+                    if(ret1.length < ret.length ){
+                        ret1.push(moy)
+                        can = canvas1
+                    }else{
+                        showResult()
+                        return;
+                    }
+                }
+                drawSpectre(data ,can)
+                requestAnimationFrame(()=>{
+                    captureData(analyser)
+                })
+            }
+        }
+
+        video.addEventListener("ended" , async ()=>{
+            await audioContext.suspend()
+            isVideo = false
+            ret = removeNoise(ret , 5)
+            drawSpectre(ret , canvas)
+            switchTo(3)
+            await audioContext.resume()
+            analyser = await getAnalyser(audioContext)
+            // analyser = await getAnalyser(audioContext , dom("videoElement1"))
+            captureData(analyser)
+        })
+
+
+        function switchTo(id){
+            hideAll("recordDiv")
+            show(dom("recordDiv"+id))
+            recordId = id
+        }
+
+        function hideAll(idbase){
+            let i = 1
+            while(true){
+                let d = dom(idbase+i)
+                if(d != null){
+                    hide(d)
+                    i++
+                }else{
+                    break
+                }
+            }
+        }
+
+        function dom(id){
+            return document.getElementById(id)
+        }
+
+        function hide(element){
+            element.classList.add("hidden")
+        }
+
+        function show(element){
+            element.classList.remove("hidden")
+        }
+    </script>
+</body>
+</html>
